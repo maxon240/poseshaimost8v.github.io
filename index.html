@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Журнал посещаемости</title>
+    <style>
+        :root {
+            --primary-light: #d4edda;
+            --primary-medium: #28a745;
+            --primary-dark: #1e7e34;
+            --bg-light: #f8f9fa;
+            --text-dark: #212529;
+            --btn-gray: #6c757d;
+            --tooltip-bg: #333;
+            --tooltip-text: #fff;
+            --row-selected: #e9f5eb; /* Светло-зеленый для подсветки строки */
+            --name-selected: #c3e6cb; /* Цвет выбранного имени */
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            margin: 0;
+        }
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 400px;
+            text-align: center;
+            margin: 50px auto;
+        }
+        .app-container {
+            background: white;
+            padding: 0;
+            margin: 20px auto;
+            width: 95vw;
+            height: 95vh;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .controls-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: var(--primary-light);
+            border-bottom: 1px solid #c3e6cb;
+        }
+        .controls-bar h2 {
+            margin: 0;
+            color: var(--primary-dark);
+            font-size: 20px;
+        }
+        .month-selector {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+            font-size: 14px;
+        }
+        .logout-btn {
+            background: var(--btn-gray);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .app {
+            display: flex;
+            height: calc(100% - 70px);
+            padding: 10px;
+            gap: 10px;
+        }
+        .names-column {
+            width: 250px;
+            background: white;
+            border-radius: 8px;
+            overflow-y: auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            padding: 10px;
+        }
+        .names-column h3 {
+            margin-top: 0;
+            background: var(--primary-medium);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .name-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            text-align: left;
+        }
+        .name-item:hover {
+            background: var(--primary-light);
+        }
+        .name-item.selected {
+            background: var(--name-selected);
+            font-weight: bold;
+        }
+        .calendar-column {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .calendar-header, .calendar-body {
+            display: grid;
+            grid-template-columns: 80px repeat(22, 1fr);
+            gap: 2px;
+            text-align: center;
+        }
+        .calendar-header {
+            background: #f8f9fa;
+            padding: 5px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .calendar-header div {
+            font-weight: bold;
+            font-size: 12px;
+            color: #495057;
+        }
+        .calendar-body {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .calendar-body > div {
+            display: contents; /* Чтобы стили применялись к дочерним div как к ячейкам таблицы */
+        }
+        .calendar-body div {
+            padding: 8px 2px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            min-height: 40px;
+            position: relative;
+            transition: background 0.2s;
+        }
+        .calendar-body div:hover:not(.status-selected) {
+            background: var(--primary-light);
+        }
+        .status-selected { border: 2px solid var(--primary-dark); }
+        
+        /* Цвета статусов */
+        .status-n { background: #fff3cd !important; color: #856404; }
+        .status-nu { background: #f8d7da !important; color: #721c24; }
+        .status-ot { background: #cce5ff !important; color: #004085; }
+        .status-nb { background: #e2e3e5 !important; color: #383d41; }
+
+        /* Подсветка всей строки */
+        .row-selected .calendar-body div {
+            background: var(--row-selected) !important;
+        }
+        .row-selected .calendar-body div:hover {
+            background: #d4edda !important;
+        }
+
+        /* Тултип с выбором */
+        .status-tooltip {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+        .quick-select-popup {
+            position: absolute;
+            z-index: 10;
+            background: var(--tooltip-bg);
+            color: var(--tooltip-text);
+            padding: 5px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .quick-select-btn {
+            background: none;
+            border: none;
+            color: var(--tooltip-text);
+            text-align: left;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .quick-select-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-container">
+    <h2>Вход в журнал</h2>
+    <input type="text" id="loginInput" placeholder="Логин">
+    <input type="password" id="passwordInput" placeholder="Пароль">
+    <button onclick="login()">Войти</button>
+</div>
+
+<div id="appScreen" style="display: none;" class="app-container">
+    <div class="controls-bar">
+        <h2>Журнал посещаемости</h2>
+        <div>
+            <select id="monthSelect" class="month-selector" onchange="changeMonth()"></select>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+    </div>
+    <div class="app">
+        <div class="names-column">
+            <h3>Список</h3>
+            <div id="namesList"></div>
+        </div>
+        <div class="calendar-column">
+            <div class="calendar-header" id="calendarHeader"></div>
+            <div class="calendar-body" id="calendarBody"></div>
+        </div>
+    </div>
+    <div id="quickSelectPopup" class="quick-select-popup" style="display: none;">
+        <button class="quick-select-btn" data-val="н">н (нет)</button>
+        <button class="quick-select-btn" data-val="н/у">н/у (неуваж.)</button>
+        <button class="quick-select-btn" data-val="от">от (отпуск)</button>
+        <button class="quick-select-btn" data-val="н/б">н/б (не было)</button>
+        <button class="quick-select-btn" data-val="" style="color: #ccc;">✕ Очистить</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+const USERS = { admin: '12345' };
+const people = [
+    'Иванов И.И.', 'Петров П.П.', 'Сидоров С.С.', 'Смирнова А.А.', 'Кузнецов К.К.'
+];
+const statuses = ['', 'н', 'н/у', 'от', 'н/б'];
+
+let currentUser = null;
+let attendanceData = {};
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let selectedPerson = null; // Переменная для хранения выбранного имени
+
+function login() {
+    const login = document.getElementById('loginInput').value;
+    const pass = document.getElementById('passwordInput').value;
+    if (USERS[login] && USERS[login] === pass) {
+        currentUser = login;
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appScreen').style.display = 'block';
+        initMonths();
+        loadData();
+        render();
+    } else {
+        alert('Неверный логин или пароль');
+    }
+}
+
+function logout() {
+    currentUser = null;
+    document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('appScreen').style.display = 'none';
+}
+
+function initMonths() {
+    const select = document.getElementById('monthSelect');
+    const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    months.forEach((m, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = m;
+        if (i === currentMonth) opt.selected = true;
+        select.appendChild(opt);
+    });
+}
+
+function changeMonth() {
+    currentMonth = parseInt(document.getElementById('monthSelect').value);
+    render();
+}
+
+function loadData() {
+    const saved = localStorage.getItem('attendanceData');
+    if (saved) {
+        attendanceData = JSON.parse(saved);
+    }
+}
+
+function saveData() {
+    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+}
+
+/* === ОТРИСОВКА === */
+function render() {
+    renderNames();
+    renderCalendar();
+    saveData();
+}
+
+/* Обновлено: подсветка выбранного имени */
+function renderNames() {
+    const namesList = document.getElementById('namesList');
+    namesList.innerHTML = '';
+    people.forEach(name => {
+        const div = document.createElement('div');
+        div.className = 'name-item';
+        if (name === selectedPerson) {
+            div.classList.add('selected');
+        }
+        div.textContent = name;
+        div.onclick = () => selectPerson(name);
+        namesList.appendChild(div);
+    });
+}
+
+/* Обновлено: добавление класса подсветки строки */
+function renderCalendar() {
+    const header = document.getElementById('calendarHeader');
+    const body = document.getElementById('calendarBody');
+    header.innerHTML = '';
+    body.innerHTML = '';
+
+    const monthDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const headerHTML = '<div>ФИО</div>' + Array.from({length: monthDays}, (_, i) => {
+        const day = i + 1;
+        return `<div>${day}</div>`;
+    }).join('');
+    header.innerHTML = headerHTML;
+
+    people.forEach(person => {
+        const row = document.createElement('div');
+        // Если это выбранный человек, добавляем класс подсветки
+        if (person === selectedPerson) {
+            row.classList.add('row-selected');
+        }
+        row.className += ' calendar-body';
+        
+        const nameCell = document.createElement('div');
+        nameCell.textContent = person;
+        row.appendChild(nameCell);
+
+        const monthDaysCount = new Date(currentYear, currentMonth + 1, 0).getDate();
+        for (let day = 1; day <= monthDaysCount; day++) {
+            const cell = document.createElement('div');
+            const key = `${person}-${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const status = attendanceData[key] || '';
+            if (status) {
+                cell.classList.add('status-' + status.replace('/', ''));
+                const tip = document.createElement('span');
+                tip.className = 'status-tooltip';
+                tip.textContent = status;
+                cell.appendChild(tip);
+            }
+            cell.onclick = (e) => {
+                e.stopPropagation();
+                showQuickSelectPopup(e.target, key);
+            };
+            row.appendChild(cell);
+        }
+        body.appendChild(row);
+    });
+}
+
+/* Обновлено: логика выбора человека */
+function selectPerson(name) {
+    selectedPerson = name;
+    render(); // Перерисовываем всё, чтобы применить подсветку
+}
+
+/* === БЫСТРЫЙ ВЫБОР (ТУЛТИП) === */
+let popupTarget = null;
+let popupKey = null;
+
+function showQuickSelectPopup(target, key) {
+    hideQuickSelectPopup();
+    
+    popupTarget = target;
+    popupKey = key;
+    
+    const popup = document.getElementById('quickSelectPopup');
+    const rect = target.getBoundingClientRect();
+    
+    popup.style.top = `${rect.top + window.scrollY + 5}px`;
+    popup.style.left = `${rect.left + window.scrollX - popup.offsetWidth - 10}px`;
+    popup.style.display = 'flex';
+    
+    target.classList.add('status-selected');
+    
+    setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+    }, 100);
+}
+
+function hideQuickSelectPopup() {
+    const popup = document.getElementById('quickSelectPopup');
+    popup.style.display = 'none';
+    if (popupTarget) {
+        popupTarget.classList.remove('status-selected');
+    }
+    document.removeEventListener('click', handleClickOutside);
+    popupTarget = null;
+    popupKey = null;
+}
+
+function handleClickOutside(e) {
+    const popup = document.getElementById('quickSelectPopup');
+    if (!popup.contains(e.target) && !popupTarget.contains(e.target)) {
+        hideQuickSelectPopup();
+    }
+}
+
+function setStatus(value) {
+    if (popupKey) {
+        attendanceData[popupKey] = value;
+        render();
+    }
+    hideQuickSelectPopup();
+}
+
+/* === ИНИЦИАЛИЗАЦИЯ === */
+document.getElementById('quickSelectPopup').addEventListener('click', function(e) {
+    if (e.target.classList.contains('quick-select-btn')) {
+        setStatus(e.target.getAttribute('data-val'));
+    }
+});
+</script>
+
+</body>
+</html>
